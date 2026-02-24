@@ -20,6 +20,7 @@ import {
 const fmt = (value) => `£${Number(value).toFixed(1)}m`;
 const pct = (value) => `${Number(value).toFixed(1)}%`;
 
+
 const ragFromValue = (value, thresholds) => {
   if (value >= thresholds.red) return { label: "Red", color: "bg-rag-red" };
   if (value >= thresholds.amber) return { label: "Amber", color: "bg-rag-amber" };
@@ -36,8 +37,8 @@ const Card = ({ title, subtitle, rag, children, action }) => (
   <div className="glass rounded-2xl p-5 shadow-panel">
     <div className="flex items-start justify-between gap-4">
       <div>
-        <p className="text-xs uppercase tracking-[0.2em] text-mist/70 font-semibold">{subtitle}</p>
-        <h3 className="text-lg font-semibold font-display mt-1">{title}</h3>
+        <p className="text-[10px] uppercase tracking-[0.35em] text-mist/60 font-semibold">{subtitle}</p>
+        <h3 className="text-lg font-semibold font-display mt-2">{title}</h3>
       </div>
       <div className="flex items-center gap-2">
         {rag && <span className={`rag-pill ${rag.color}`}>{rag.label}</span>}
@@ -56,19 +57,66 @@ const Stat = ({ label, value, helper }) => (
   </div>
 );
 
-const InputField = ({ label, value, onChange, step = "0.1", suffix, type = "number" }) => (
-  <label className="text-xs text-mist/70 flex flex-col gap-1">
-    {label}
+const InputField = ({
+  label,
+  value,
+  onChange,
+  step = "0.1",
+  suffix,
+  prefix,
+  type = "number"
+}) => (
+  <label className="text-[11px] text-mist/70 flex flex-col gap-2">
+    <span className="uppercase tracking-[0.2em]">{label}</span>
     <div className="flex items-center gap-2">
+      {prefix && <span className="text-xs text-mist/60">{prefix}</span>}
       <input
         type={type}
         step={step}
         value={value}
         onChange={(e) => onChange(type === "number" ? Number(e.target.value) : e.target.value)}
-        className="w-full rounded-lg bg-white/10 border border-white/10 px-3 py-1 text-white"
+        className="control-input"
       />
       {suffix && <span className="text-xs text-mist/60">{suffix}</span>}
     </div>
+  </label>
+);
+
+const ToggleField = ({ label, value, onChange, helper }) => (
+  <label className="flex items-center justify-between gap-4 text-xs text-mist/70">
+    <div>
+      <p className="uppercase tracking-[0.2em]">{label}</p>
+      {helper && <p className="text-[11px] text-mist/60 mt-1">{helper}</p>}
+    </div>
+    <button
+      type="button"
+      className={`toggle ${value ? "bg-aqua/40" : ""}`}
+      onClick={() => onChange(!value)}
+    >
+      <span className={`toggle-dot ${value ? "translate-x-5 bg-aqua" : "translate-x-1"}`} />
+    </button>
+  </label>
+);
+
+const SliderField = ({ label, value, min, max, step = 1, onChange, suffix, helper }) => (
+  <label className="flex flex-col gap-2 text-xs text-mist/70">
+    <div className="flex items-center justify-between">
+      <span className="uppercase tracking-[0.2em]">{label}</span>
+      <span className="text-mist/60">
+        {value}
+        {suffix}
+      </span>
+    </div>
+    <input
+      className="slider"
+      type="range"
+      min={min}
+      max={max}
+      step={step}
+      value={value}
+      onChange={(e) => onChange(Number(e.target.value))}
+    />
+    {helper && <span className="text-[11px] text-mist/60">{helper}</span>}
   </label>
 );
 
@@ -84,6 +132,16 @@ export default function App() {
   const [localitiesImpact, setLocalitiesImpact] = useState(true);
   const [stepDown, setStepDown] = useState(false);
   const [marketInflation, setMarketInflation] = useState(true);
+  const [marketInflationRate, setMarketInflationRate] = useState(6);
+  const [localitiesReduction, setLocalitiesReduction] = useState(5);
+  const [stepDownRate, setStepDownRate] = useState(8);
+  const [uascGrantUplift, setUascGrantUplift] = useState(10);
+  const [demandShock, setDemandShock] = useState(false);
+  const [demandShockRate, setDemandShockRate] = useState(1.5);
+  const [agencyConversionGain, setAgencyConversionGain] = useState(6);
+  const [commissioningSavings, setCommissioningSavings] = useState(1.2);
+  const [inflationIndex, setInflationIndex] = useState(3.4);
+  const [unitCostImprovement, setUnitCostImprovement] = useState(4);
   const [reduceAgency, setReduceAgency] = useState(10);
   const [reducePlacements, setReducePlacements] = useState(8);
   const [efficiencyRate, setEfficiencyRate] = useState(85);
@@ -142,6 +200,7 @@ export default function App() {
     edgeOfCareImprovement: 2.0
   });
 
+
   const reserveCoverage = finance.reserveSupport / finance.inYearDeficit;
   const monthsToExhaustion = (finance.reserveSupport / finance.inYearDeficit) * 12;
   const reserveRag = ragInverse(monthsToExhaustion, { red: 6, amber: 12 });
@@ -149,21 +208,26 @@ export default function App() {
 
   const placementDelta = placements.actual - placements.budgeted;
   const pressurePerPlacement = placements.costPressure / Math.max(1, placementDelta);
-  const modelledPlacementBase = placements.actual
-    * (localitiesImpact ? 0.95 : 1)
-    * (stepDown ? 0.92 : 1)
-    * (marketInflation ? 1.06 : 1);
+  const marketInflationFactor = marketInflation ? 1 + marketInflationRate / 100 : 1;
+  const localitiesFactor = localitiesImpact ? 1 - localitiesReduction / 100 : 1;
+  const stepDownFactor = stepDown ? 1 - stepDownRate / 100 : 1;
+  const unitCostFactor = 1 - unitCostImprovement / 100;
+  const modelledPlacementBase =
+    placements.actual * localitiesFactor * stepDownFactor * marketInflationFactor * unitCostFactor;
   const modelledPressure = Math.max(0, (modelledPlacementBase - placements.budgeted) * pressurePerPlacement);
 
-  const agencyPremium = finance.expenditure * (workforce.agencyRate / 100) * 0.3;
+  const effectiveAgencyRate = Math.max(0, workforce.agencyRate - agencyConversionGain);
+  const agencyPremium = finance.expenditure * (effectiveAgencyRate / 100) * 0.3;
   const breakEven = agencyPremium / (finance.expenditure * 0.1);
 
-  const uascNet = uasc.pressure - uasc.grant;
+  const grantUplifted = uasc.grant * (1 + uascGrantUplift / 100);
+  const uascNet = uasc.pressure - grantUplifted;
 
   const scenarioSavings =
     placements.costPressure * (reducePlacements / 100)
     + agencyPremium * (reduceAgency / 100)
-    + Math.max(0, (efficiencyRate - 77) / 100) * efficiencies.targetNext;
+    + Math.max(0, (efficiencyRate - 77) / 100) * efficiencies.targetNext
+    + commissioningSavings;
 
   const scenarioDeficit = Math.max(0, finance.inYearDeficit - scenarioSavings);
 
@@ -174,8 +238,10 @@ export default function App() {
     const lacImpact = demandDrivers.lacGrowth * 0.4;
     const uascImpact = demandDrivers.uascGrowth * 0.25;
     const edgeBenefit = demandDrivers.edgeOfCareImprovement * 0.3;
-    return Math.max(0.5, base + lacImpact + uascImpact - edgeBenefit);
-  }, [pressureRate, demandDrivers]);
+    const shock = demandShock ? demandShockRate : 0;
+    const inflation = inflationIndex * 0.15;
+    return Math.max(0.5, base + lacImpact + uascImpact - edgeBenefit + shock + inflation);
+  }, [pressureRate, demandDrivers, demandShock, demandShockRate, inflationIndex]);
 
   const mtfpSeries = useMemo(() => {
     const base = finance.inYearDeficit;
@@ -243,6 +309,11 @@ export default function App() {
   const fundedGap = workforce.wteRequired - workforce.wteFunded;
   const timeToFillMonths = workforce.timeToFill / 30;
 
+  const liveInYearDeficit = finance.inYearDeficit;
+  const liveMonthsToExhaustion = monthsToExhaustion;
+  const liveCostPressure = placements.costPressure;
+  const liveModelledPressure = modelledPressure;
+
   const reservesAfterYear1 = finance.openingReserves - (mtfpSeries[0]?.current || 0);
   const section114Risk =
     reservesAfterYear1 < finance.minimumReserves ||
@@ -271,7 +342,7 @@ export default function App() {
   ];
 
   const boardMessages = [
-    `The Trust is forecasting a £${finance.inYearDeficit.toFixed(1)}m in-year deficit with a cumulative position of £${finance.cumulativeDeficit.toFixed(1)}m.`,
+    `The Trust is forecasting a £${finance.inYearDeficit.toFixed(1)}m in-year deficit with a year-to-date cumulative position of £${finance.cumulativeDeficit.toFixed(1)}m.`,
     `Opening reserves of £${finance.openingReserves.toFixed(1)}m provide ${monthsToExhaustion.toFixed(1)} months of cover at current burn.`,
     `Residential placement volatility remains the single largest pressure at £${placements.costPressure.toFixed(1)}m.`,
     `Transformation delivery confidence is mixed: ${efficiencies.delivery.undelivered}% is undelivered.`,
@@ -286,12 +357,50 @@ export default function App() {
     "UASC supported accommodation pressures not offset by grant."
   ];
 
+  const walkthroughSteps = [
+    {
+      title: "Start with the executive risk snapshot",
+      body:
+        "Read the Executive Snapshot first. The reserves, deficit, and transformation cards give an at-a-glance RAG view so you can decide where to dive deeper."
+    },
+    {
+      title: "Use Live Exposure Snapshot as your control loop",
+      body:
+        "As you move sliders and toggles, the Live Exposure Snapshot updates instantly. Use it as your headline dashboard for in-year deficit, reserves runway, and placement volatility."
+    },
+    {
+      title: "Validate the demand and placement drivers",
+      body:
+        "Use the Placement Market Volatility panel to test step-downs, localities impact, and market inflation. The chart shows the gap between budget, actuals, and a modelled scenario."
+    },
+    {
+      title: "Stress-test the workforce cost premium",
+      body:
+        "Check the workforce mix donut and vacancy trend. Then adjust WTE funded and time-to-fill to see how agency reliance shifts the premium."
+    },
+    {
+      title: "Model recovery actions",
+      body:
+        "Use the sliders in the Deficit Recovery Scenario Modeller to test reductions in agency usage, placements, and delivery performance. The scenario deficit and four-year cumulative totals update immediately."
+    },
+    {
+      title: "Review the medium-term outlook",
+      body:
+        "Switch between demand pressure buttons and adjust growth drivers to see how the four-year deficit profile changes. The reserves chart beneath shows when minimum balance thresholds are breached."
+    },
+    {
+      title: "Lock down the audit trail",
+      body:
+        "Use the Assumptions & Inputs panel to update refresh dates and core financial assumptions, creating a transparent audit trail for governance."
+    }
+  ];
+
   const executiveInsight = `At the current burn rate reserves will be depleted in ${monthsToExhaustion.toFixed(1)} months, triggering a ${reserveRag.label.toLowerCase()} statutory risk profile.`;
-  const placementInsight = `Residential placement volatility is contributing £${placements.costPressure.toFixed(1)}m to the in-year deficit. A 10% reduction in placements would reduce the pressure by £${(placements.costPressure * 0.1).toFixed(1)}m.`;
-  const workforceInsight = `Agency premiums are estimated at £${agencyPremium.toFixed(1)}m. Every 10% reduction in agency usage removes roughly £${(agencyPremium * 0.1).toFixed(1)}m from the cost base.`;
+  const placementInsight = `Residential placement volatility is contributing £${placements.costPressure.toFixed(1)}m to the in-year deficit. A ${unitCostImprovement}% unit-cost improvement reduces modelled pressure by £${(placements.costPressure * (unitCostImprovement / 100)).toFixed(1)}m.`;
+  const workforceInsight = `Agency premiums are estimated at £${agencyPremium.toFixed(1)}m. Conversion activity reduces the agency rate to ${effectiveAgencyRate.toFixed(1)}%.`;
   const transformationInsight = `Transformation delivery confidence is ${100 - efficiencies.delivery.undelivered}%. Improving delivery to ${efficiencyRate}% would reduce the in-year gap by £${(Math.max(0, (efficiencyRate - 77) / 100) * efficiencies.targetNext).toFixed(2)}m.`;
-  const uascInsight = `UASC pressures total £${uasc.pressure.toFixed(1)}m with £${uasc.grant.toFixed(1)}m grant offset, leaving a net pressure of £${uascNet.toFixed(1)}m.`;
-  const recoveryInsight = `Scenario actions reduce the in-year deficit to £${scenarioDeficit.toFixed(1)}m and reduce the 4-year cumulative deficit to £${scenarioCumulativeDeficit.toFixed(1)}m.`;
+  const uascInsight = `UASC pressures total £${uasc.pressure.toFixed(1)}m with £${grantUplifted.toFixed(1)}m grant offset, leaving a net pressure of £${uascNet.toFixed(1)}m.`;
+  const recoveryInsight = `Scenario actions reduce the in-year deficit to £${scenarioDeficit.toFixed(1)}m and reduce the 4-year cumulative deficit to £${scenarioCumulativeDeficit.toFixed(1)}m. Commissioning actions contribute £${commissioningSavings.toFixed(1)}m.`;
 
   const financeBars = [
     { name: "Budget", value: finance.income },
@@ -316,8 +425,8 @@ export default function App() {
   ];
 
   const workforceMix = [
-    { name: "Permanent", value: 100 - workforce.agencyRate },
-    { name: "Agency", value: workforce.agencyRate }
+    { name: "Permanent", value: 100 - effectiveAgencyRate },
+    { name: "Agency", value: effectiveAgencyRate }
   ];
 
   const efficiencyStack = [
@@ -331,38 +440,297 @@ export default function App() {
 
   const uascWaterfall = [
     { name: "Gross", value: uasc.pressure },
-    { name: "Grant", value: -uasc.grant },
+    { name: "Grant", value: -grantUplifted },
     { name: "Net", value: uascNet },
     { name: "Residual", value: uascNet * 0.4 }
   ];
 
   return (
-    <div className="px-5 py-8 lg:px-10">
+    <div className="px-5 py-8 lg:px-12">
       <header className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between print:hidden">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-mist/70">Sandwell Children&#39;s Trust</p>
-          <h1 className="text-3xl lg:text-4xl font-display font-semibold mt-2">Strategic Financial Intelligence</h1>
-          <p className="text-mist/80 mt-2 max-w-2xl">
-            Intelligence-led decision support for the Strategic Partnership Board and Section 151 oversight.
+          <p className="text-[10px] uppercase tracking-[0.4em] text-mist/60">Children&#39;s Trust Finance</p>
+          <h1 className="text-3xl lg:text-5xl font-display font-semibold mt-3">
+            Strategic Financial Command Center
+          </h1>
+          <p className="text-mist/70 mt-3 max-w-2xl">
+            Executive intelligence for Trust finance leaders. Stress-test scenarios, adjust drivers, and lock the
+            governance narrative in real time.
           </p>
+          <div className="flex flex-wrap gap-3 mt-4 text-xs text-mist/60">
+            <span className="rounded-full border border-white/10 px-3 py-1">Refresh date: {refreshDate}</span>
+            <span className="rounded-full border border-white/10 px-3 py-1">Model version: 2026.1</span>
+            <span className="rounded-full border border-white/10 px-3 py-1">
+              Board view: {boardView ? "On" : "Off"}
+            </span>
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
-            className="px-4 py-2 rounded-full border border-white/20 text-sm font-semibold hover:bg-white/10 transition"
+            className="px-5 py-2 rounded-full bg-aqua/20 border border-aqua/40 text-sm font-semibold hover:bg-aqua/30 transition"
             onClick={() => setBoardView((prev) => !prev)}
           >
             {boardView ? "Switch to Analyst View" : "Strategic Partnership Board View"}
           </button>
-          <button
-            className="px-4 py-2 rounded-full border border-white/20 text-sm font-semibold hover:bg-white/10 transition"
-            onClick={() => window.print()}
-          >
-            Export Board Pack (PDF)
-          </button>
         </div>
       </header>
 
-      <section className="mt-6 grid gap-4 lg:grid-cols-4">
+      <section className="mt-8 grid gap-6 lg:grid-cols-3">
+        <div className="glass rounded-2xl p-6 shadow-panel lg:col-span-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.35em] text-mist/60">Control Tower</p>
+              <h2 className="text-xl font-display font-semibold mt-2">Scenario Inputs & Policy Levers</h2>
+              <p className="text-sm text-mist/70 mt-2 max-w-2xl">
+                Tune the Trust-wide finance levers below. Every change updates deficit projections, reserves exposure,
+                and risk flags instantly.
+              </p>
+            </div>
+            <div className="hidden lg:flex items-center gap-2 text-xs text-mist/60">
+              <span className="rounded-full border border-white/10 px-3 py-1">Live model</span>
+              <span className="rounded-full border border-white/10 px-3 py-1">Inputs auto-saved</span>
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-6 lg:grid-cols-2">
+            <div className="surface rounded-2xl p-4">
+              <p className="text-xs uppercase tracking-[0.3em] text-mist/60">Macro Pressure</p>
+              <div className="mt-4 grid gap-4">
+                <SliderField
+                  label="Demand pressure baseline"
+                  value={pressureRate}
+                  min={2}
+                  max={9}
+                  step={1}
+                  suffix="%"
+                  onChange={setPressureRate}
+                  helper="Board-approved base assumption"
+                />
+                <SliderField
+                  label="Inflation index"
+                  value={inflationIndex}
+                  min={1}
+                  max={6}
+                  step={0.1}
+                  suffix="%"
+                  onChange={setInflationIndex}
+                  helper="Care market inflation weighting"
+                />
+                <ToggleField
+                  label="Demand shock overlay"
+                  value={demandShock}
+                  onChange={setDemandShock}
+                  helper="Toggle for surge scenarios"
+                />
+                <SliderField
+                  label="Shock uplift"
+                  value={demandShockRate}
+                  min={0}
+                  max={4}
+                  step={0.1}
+                  suffix="%"
+                  onChange={setDemandShockRate}
+                />
+              </div>
+            </div>
+
+            <div className="surface rounded-2xl p-4">
+              <p className="text-xs uppercase tracking-[0.3em] text-mist/60">Placement & Commissioning</p>
+              <div className="mt-4 grid gap-4">
+                <ToggleField
+                  label="Localities impact"
+                  value={localitiesImpact}
+                  onChange={setLocalitiesImpact}
+                  helper="Enables place-based demand dampening"
+                />
+                <SliderField
+                  label="Localities reduction"
+                  value={localitiesReduction}
+                  min={0}
+                  max={12}
+                  step={0.5}
+                  suffix="%"
+                  onChange={setLocalitiesReduction}
+                />
+                <ToggleField
+                  label="Step-down programme"
+                  value={stepDown}
+                  onChange={setStepDown}
+                  helper="Step-down to lower-cost provision"
+                />
+                <SliderField
+                  label="Step-down scale"
+                  value={stepDownRate}
+                  min={0}
+                  max={20}
+                  step={1}
+                  suffix="%"
+                  onChange={setStepDownRate}
+                />
+                <ToggleField
+                  label="Market inflation"
+                  value={marketInflation}
+                  onChange={setMarketInflation}
+                  helper="Applies care market price uplift"
+                />
+                <SliderField
+                  label="Market inflation rate"
+                  value={marketInflationRate}
+                  min={0}
+                  max={12}
+                  step={0.5}
+                  suffix="%"
+                  onChange={setMarketInflationRate}
+                />
+                <SliderField
+                  label="Unit-cost improvement"
+                  value={unitCostImprovement}
+                  min={0}
+                  max={10}
+                  step={0.5}
+                  suffix="%"
+                  onChange={setUnitCostImprovement}
+                />
+                <InputField
+                  label="Commissioning savings"
+                  value={commissioningSavings}
+                  onChange={setCommissioningSavings}
+                  step="0.1"
+                  suffix="£m"
+                />
+              </div>
+            </div>
+
+            <div className="surface rounded-2xl p-4">
+              <p className="text-xs uppercase tracking-[0.3em] text-mist/60">Workforce & Agency Mix</p>
+              <div className="mt-4 grid gap-4">
+                <SliderField
+                  label="Agency conversion gain"
+                  value={agencyConversionGain}
+                  min={0}
+                  max={12}
+                  step={0.5}
+                  suffix="%"
+                  onChange={setAgencyConversionGain}
+                  helper="Improvement to agency rate"
+                />
+                <SliderField
+                  label="Vacancy stabilisation"
+                  value={workforce.vacancyRate}
+                  min={10}
+                  max={30}
+                  step={0.2}
+                  suffix="%"
+                  onChange={(val) => setWorkforce((prev) => ({ ...prev, vacancyRate: val }))}
+                />
+                <InputField
+                  label="Recruitment time-to-fill"
+                  value={workforce.timeToFill}
+                  onChange={(val) => setWorkforce((prev) => ({ ...prev, timeToFill: val }))}
+                  step="1"
+                  suffix="days"
+                />
+              </div>
+            </div>
+
+            <div className="surface rounded-2xl p-4">
+              <p className="text-xs uppercase tracking-[0.3em] text-mist/60">Grant & Funding</p>
+              <div className="mt-4 grid gap-4">
+                <SliderField
+                  label="UASC grant uplift"
+                  value={uascGrantUplift}
+                  min={0}
+                  max={25}
+                  step={1}
+                  suffix="%"
+                  onChange={setUascGrantUplift}
+                />
+                <InputField
+                  label="Reserve support"
+                  value={finance.reserveSupport}
+                  onChange={(val) => setFinance((prev) => ({ ...prev, reserveSupport: val }))}
+                  step="0.1"
+                  suffix="£m"
+                />
+                <InputField
+                  label="Opening reserves"
+                  value={finance.openingReserves}
+                  onChange={(val) => setFinance((prev) => ({ ...prev, openingReserves: val }))}
+                  step="0.1"
+                  suffix="£m"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="glass rounded-2xl p-6 shadow-panel">
+          <p className="text-[10px] uppercase tracking-[0.35em] text-mist/60">Finance Pulse</p>
+          <h2 className="text-xl font-display font-semibold mt-2">Live Exposure Snapshot</h2>
+          <p className="text-xs text-mist/60 mt-2">Auto-updates from live inputs and scenario levers.</p>
+          <div className="mt-5 grid gap-4">
+            <div className="rounded-2xl surface p-4 glow-ring">
+              <p className="text-xs uppercase tracking-[0.3em] text-mist/60">In-year deficit</p>
+              <p className="text-3xl font-display mt-2">{fmt(liveInYearDeficit)}</p>
+              <p className="text-xs text-mist/60 mt-2">
+                Scenario-adjusted gap: {fmt(scenarioDeficit)}
+              </p>
+            </div>
+            <div className="rounded-2xl surface p-4">
+              <p className="text-xs uppercase tracking-[0.3em] text-mist/60">Reserves runway</p>
+              <p className="text-2xl font-display mt-2">{liveMonthsToExhaustion.toFixed(1)} months</p>
+              <p className="text-xs text-mist/60 mt-2">
+                Minimum balance threshold: {fmt(finance.minimumReserves)}
+              </p>
+            </div>
+            <div className="rounded-2xl surface p-4">
+              <p className="text-xs uppercase tracking-[0.3em] text-mist/60">Placement volatility</p>
+              <p className="text-2xl font-display mt-2">{fmt(liveCostPressure)}</p>
+              <p className="text-xs text-mist/60 mt-2">
+                Modelled pressure: {fmt(liveModelledPressure)}
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="mt-6">
+        <div className="glass rounded-2xl p-6 shadow-panel">
+          <details className="group" open>
+            <summary className="flex cursor-pointer items-center justify-between gap-4 text-lg font-semibold font-display">
+              <span>Walkthrough: Quick Orientation</span>
+              <span className="text-xs uppercase tracking-[0.2em] text-mist/70 transition group-open:rotate-180">▼</span>
+            </summary>
+            <p className="text-sm text-mist/80 mt-3 max-w-3xl">
+              Designed for busy leaders. Start with risk, interrogate drivers, test recovery, and finish with
+              governance. Expand or collapse whenever you need a refresher.
+            </p>
+            <div className="mt-5 grid gap-4 lg:grid-cols-2">
+              {walkthroughSteps.map((step, idx) => (
+                <div key={step.title} className="rounded-xl bg-white/5 border border-white/10 p-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-mist/70">Step {idx + 1}</p>
+                  <h3 className="mt-2 font-semibold">{step.title}</h3>
+                  <p className="text-sm text-mist/80 mt-2">{step.body}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-5 p-4 rounded-xl bg-white/10 border border-white/10 text-sm text-mist/80">
+              <p>
+                Tip: switch to Strategic Partnership Board View once scenarios are tested to generate the narrative
+                for board discussion.
+              </p>
+            </div>
+          </details>
+        </div>
+      </section>
+
+      <div className="mt-6 flex items-center justify-between">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.35em] text-mist/60">Executive Snapshot</p>
+          <h2 className="text-lg font-display font-semibold mt-2">Statutory Risk & Exposure</h2>
+        </div>
+      </div>
+      <section className="mt-4 grid gap-4 lg:grid-cols-4">
         <Card title="Executive Statutory Risk" subtitle="Reserves & Deficit" rag={reserveRag}>
           <div className="grid grid-cols-2 gap-4">
             <Stat label="Cumulative Deficit" value={fmt(finance.cumulativeDeficit)} />
@@ -379,12 +747,12 @@ export default function App() {
             <Stat label="Agency Premium" value={fmt(agencyPremium)} />
             <Stat label="Undelivered Efficiencies" value={`${efficiencies.delivery.undelivered}%`} />
           </div>
-          <Insight text="Pressure concentration remains high in placements and workforce. Targeted demand management is required to stabilise the in-year position." />
+          <Insight text={`Total exposure from placements and UASC is £${(placements.costPressure + uascNet).toFixed(1)}m. Agency premium adds £${agencyPremium.toFixed(1)}m to the cost base.`} />
         </Card>
-        <Card title="Workforce Sustainability" subtitle="VfM" rag={ragFromValue(workforce.agencyRate, { red: 25, amber: 18 })}>
+        <Card title="Workforce Sustainability" subtitle="VfM" rag={ragFromValue(effectiveAgencyRate, { red: 25, amber: 18 })}>
           <div className="grid grid-cols-2 gap-4">
             <Stat label="Vacancy Rate" value={pct(workforce.vacancyRate)} helper="PI12 target <34%" />
-            <Stat label="Agency Rate" value={pct(workforce.agencyRate)} />
+            <Stat label="Agency Rate (Adj.)" value={pct(effectiveAgencyRate)} />
             <Stat label="ASYE Pipeline" value={workforce.asye} helper="Current recruits" />
             <Stat label="Break-even Point" value={`${breakEven.toFixed(1)}%`} helper="Agency to perm switch" />
           </div>
@@ -401,7 +769,13 @@ export default function App() {
         </Card>
       </section>
 
-      <section className="mt-6 grid gap-6 lg:grid-cols-2">
+      <div className="mt-8 flex items-center justify-between">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.35em] text-mist/60">Drivers & Volatility</p>
+          <h2 className="text-lg font-display font-semibold mt-2">Demand, Market, Workforce</h2>
+        </div>
+      </div>
+      <section className="mt-4 grid gap-6 lg:grid-cols-2">
         <Card title="Financial Position & Forecast" subtitle="Budget to worst-case" rag={deficitRag}>
           <div className="h-64">
             <ResponsiveContainer>
@@ -430,25 +804,20 @@ export default function App() {
               </AreaChart>
             </ResponsiveContainer>
           </div>
-          <Insight text="Risk-adjusted forecast shows volatility bands. Focus mitigation on drivers that push the outturn into the high-risk trajectory." />
+          <Insight text={`Risk-adjusted forecast shows a high-band year-one exposure of £${(riskBands[0]?.high || 0).toFixed(1)}m. Focus mitigation on drivers that push the outturn into the high-risk trajectory.`} />
         </Card>
       </section>
 
       <section className="mt-6 grid gap-6 lg:grid-cols-2">
         <Card title="Placement Market Volatility" subtitle="Scenario modeller" rag={ragFromValue(modelledPressure, { red: 6, amber: 3 })}>
-          <div className="flex flex-wrap gap-3 text-xs">
-            <label className="flex items-center gap-2">
-              <input type="checkbox" checked={localitiesImpact} onChange={(e) => setLocalitiesImpact(e.target.checked)} />
-              Localities model impact
-            </label>
-            <label className="flex items-center gap-2">
-              <input type="checkbox" checked={stepDown} onChange={(e) => setStepDown(e.target.checked)} />
-              Step-down to fostering
-            </label>
-            <label className="flex items-center gap-2">
-              <input type="checkbox" checked={marketInflation} onChange={(e) => setMarketInflation(e.target.checked)} />
-              External market inflation
-            </label>
+          <div className="grid gap-3 text-xs">
+            <ToggleField
+              label="Localities model impact"
+              value={localitiesImpact}
+              onChange={setLocalitiesImpact}
+            />
+            <ToggleField label="Step-down to fostering" value={stepDown} onChange={setStepDown} />
+            <ToggleField label="External market inflation" value={marketInflation} onChange={setMarketInflation} />
           </div>
           <div className="h-56 mt-4">
             <ResponsiveContainer>
@@ -534,7 +903,13 @@ export default function App() {
         </Card>
       </section>
 
-      <section className="mt-6 grid gap-6 lg:grid-cols-2">
+      <div className="mt-8 flex items-center justify-between">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.35em] text-mist/60">Recovery & Outlook</p>
+          <h2 className="text-lg font-display font-semibold mt-2">Mitigation, Scenarios, Reserves</h2>
+        </div>
+      </div>
+      <section className="mt-4 grid gap-6 lg:grid-cols-2">
         <Card title="Transformation Benefits Realisation" subtitle="Cashable vs non-cashable" rag={ragInverse(efficiencies.delivery.undelivered, { red: 15, amber: 8 })}>
           <div className="h-52">
             <ResponsiveContainer>
@@ -593,37 +968,34 @@ export default function App() {
 
       <section className="mt-6 grid gap-6 lg:grid-cols-2">
         <Card title="Deficit Recovery Scenario Modeller" subtitle="Controls" rag={ragFromValue(scenarioDeficit, { red: 7, amber: 4 })}>
-          <div className="grid gap-3 text-sm">
-            <label className="flex items-center justify-between">
-              Reduce agency usage ({reduceAgency}%)
-              <input
-                type="range"
-                min="0"
-                max="30"
-                value={reduceAgency}
-                onChange={(e) => setReduceAgency(Number(e.target.value))}
-              />
-            </label>
-            <label className="flex items-center justify-between">
-              Reduce residential placements ({reducePlacements}%)
-              <input
-                type="range"
-                min="0"
-                max="25"
-                value={reducePlacements}
-                onChange={(e) => setReducePlacements(Number(e.target.value))}
-              />
-            </label>
-            <label className="flex items-center justify-between">
-              Efficiency delivery rate ({efficiencyRate}%)
-              <input
-                type="range"
-                min="70"
-                max="110"
-                value={efficiencyRate}
-                onChange={(e) => setEfficiencyRate(Number(e.target.value))}
-              />
-            </label>
+          <div className="grid gap-4 text-sm">
+            <SliderField
+              label="Reduce agency usage"
+              value={reduceAgency}
+              min={0}
+              max={30}
+              step={1}
+              suffix="%"
+              onChange={setReduceAgency}
+            />
+            <SliderField
+              label="Reduce residential placements"
+              value={reducePlacements}
+              min={0}
+              max={25}
+              step={1}
+              suffix="%"
+              onChange={setReducePlacements}
+            />
+            <SliderField
+              label="Efficiency delivery rate"
+              value={efficiencyRate}
+              min={70}
+              max={110}
+              step={1}
+              suffix="%"
+              onChange={setEfficiencyRate}
+            />
           </div>
           <div className="grid grid-cols-2 gap-4 mt-4">
             <Stat label="Scenario Deficit" value={fmt(scenarioDeficit)} />
@@ -654,7 +1026,7 @@ export default function App() {
               </tbody>
             </table>
           </div>
-          <Insight text="Scenario comparison highlights the scale of recovery required to sustain reserves beyond 12 months." />
+          <Insight text={`Scenario comparison highlights the recovery needed to sustain reserves beyond 12 months. Optimised recovery extends runway to ${scenarioTable[2]?.reserveMonths.toFixed(1)} months.`} />
         </Card>
       </section>
 
@@ -664,7 +1036,11 @@ export default function App() {
             {[3, 5, 8].map((rate) => (
               <button
                 key={rate}
-                className={`px-3 py-1 rounded-full border ${pressureRate === rate ? "bg-white text-ink" : "border-white/30"}`}
+                className={`px-3 py-1 rounded-full border transition ${
+                  pressureRate === rate
+                    ? "bg-aqua/30 border-aqua/60 text-white"
+                    : "border-white/20 text-mist/70 hover:bg-white/10"
+                }`}
                 onClick={() => setPressureRate(rate)}
               >
                 Demand pressure {rate}%
@@ -742,7 +1118,13 @@ export default function App() {
         </Card>
       </section>
 
-      <section className="mt-6 grid gap-6 lg:grid-cols-2">
+      <div className="mt-8 flex items-center justify-between">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.35em] text-mist/60">Governance & Assurance</p>
+          <h2 className="text-lg font-display font-semibold mt-2">Inputs, Audit Trail, Early Warning</h2>
+        </div>
+      </div>
+      <section className="mt-4 grid gap-6 lg:grid-cols-2">
         <Card title="Assumptions & Inputs" subtitle="Audit trail" rag={ragInverse(0, { red: 1, amber: 1 })}>
           <div className="grid grid-cols-2 gap-3 text-xs">
             <InputField
@@ -807,7 +1189,7 @@ export default function App() {
               step="0.1"
             />
             <InputField
-              label="UASC grant (£m)"
+              label="UASC base grant (£m)"
               value={uasc.grant}
               onChange={(val) => setUasc((prev) => ({ ...prev, grant: val }))}
               step="0.1"
@@ -868,7 +1250,7 @@ export default function App() {
             </div>
           </div>
           <div className="mt-6 p-4 rounded-xl bg-white/10 border border-white/10">
-            <h3 className="text-sm uppercase tracking-[0.2em] text-mist/70">Required Decisions</h3>
+            <h3 className="text-sm uppercase tracking-[0.2em] text-mist/70">Decisions Sought</h3>
             <div className="mt-3 text-mist">
               <p>Approve accelerated placement step-down commissioning and establish an agency conversion taskforce by Q1.</p>
               <p className="mt-2">Mandate monthly transformation delivery reporting with escalation triggers for any variance above 10%.</p>
@@ -879,7 +1261,7 @@ export default function App() {
       )}
 
       <section className="mt-10 text-xs text-mist/70">
-        <p>All figures in £m. Insights auto-generated from embedded model assumptions and live scenario toggles.</p>
+        <p>All figures in £m. Summaries and insights update live from the model inputs and scenario levers.</p>
       </section>
     </div>
   );

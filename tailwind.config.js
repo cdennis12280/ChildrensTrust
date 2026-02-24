@@ -4,24 +4,29 @@ export default {
   theme: {
     extend: {
       colors: {
-        ink: "#0b1f3a",
-        navy: "#12325c",
-        steel: "#1f4f7a",
-        slate: "#546a7b",
-        mist: "#e8eef5",
+        ink: "#0a1b2e",
+        navy: "#0f2a47",
+        steel: "#1a3a5f",
+        slate: "#6a7a8c",
+        mist: "#d9e4f2",
+        carbon: "#08121f",
+        obsidian: "#050b14",
+        mint: "#7de3c1",
+        gold: "#f5c36a",
+        aqua: "#6ec7ff",
         rag: {
-          green: "#1f9d55",
+          green: "#2ecc71",
           amber: "#f4b740",
-          red: "#d64545"
+          red: "#e24a4a"
         }
       },
       boxShadow: {
-        panel: "0 18px 40px rgba(9, 24, 44, 0.12)",
-        glow: "0 10px 24px rgba(31, 79, 122, 0.25)"
+        panel: "0 24px 60px rgba(3, 10, 20, 0.35)",
+        glow: "0 16px 40px rgba(20, 80, 160, 0.35)"
       },
       fontFamily: {
-        display: ["Montserrat", "system-ui", "sans-serif"],
-        body: ["Source Sans 3", "system-ui", "sans-serif"]
+        display: ["Sora", "system-ui", "sans-serif"],
+        body: ["Manrope", "system-ui", "sans-serif"]
       }
     }
   },
